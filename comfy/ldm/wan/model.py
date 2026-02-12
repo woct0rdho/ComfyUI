@@ -5,6 +5,7 @@ import math
 import torch
 import torch.nn as nn
 from einops import rearrange
+from tqdm import tqdm
 
 from comfy.ldm.modules.attention import AttentionTensorContainer, ComfyAttention, optimized_attention
 from comfy.ldm.flux.layers import EmbedND
@@ -621,7 +622,7 @@ class WanModel(torch.nn.Module):
         blocks_replace = patches_replace.get("dit", {})
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
-        for i, block in enumerate(self.blocks):
+        for i, block in enumerate(tqdm(self.blocks)):
             transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
@@ -632,6 +633,7 @@ class WanModel(torch.nn.Module):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context, context_img_len=context_img_len, transformer_options=transformer_options)
+            torch.cuda.synchronize()
 
             if "double_block" in patches:
                 for p in patches["double_block"]:
