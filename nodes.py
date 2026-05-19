@@ -94,19 +94,50 @@ class ConditioningCombine:
         return (conditioning_1 + conditioning_2, )
 
 class ConditioningAverage :
-    SEARCH_ALIASES = ["blend prompts", "interpolate conditioning", "mix prompts", "style fusion", "weighted blend"]
+    SEARCH_ALIASES = ["blend prompts", "interpolate conditioning", "mix prompts", "style fusion", "weighted blend", "slerp conditioning"]
 
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", ),
-                              "conditioning_to_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
+                              "conditioning_to_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                             },
+                "optional": {
+                              "interpolation": (["linear", "slerp"], {"default": "linear"}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "addWeighted"
 
     CATEGORY = "model/conditioning/transform"
 
-    def addWeighted(self, conditioning_to, conditioning_from, conditioning_to_strength):
+    def slerp(self, conditioning_to, conditioning_from, conditioning_to_strength):
+        to = conditioning_to.float()
+        from_ = conditioning_from.float()
+        weight = conditioning_to_strength
+        linear = torch.mul(to, weight) + torch.mul(from_, (1.0 - weight))
+
+        to_norm = torch.linalg.vector_norm(to, dim=-1, keepdim=True)
+        from_norm = torch.linalg.vector_norm(from_, dim=-1, keepdim=True)
+        safe_to = torch.where(to_norm > 0, to / to_norm, to)
+        safe_from = torch.where(from_norm > 0, from_ / from_norm, from_)
+
+        dot = torch.sum(safe_to * safe_from, dim=-1, keepdim=True).clamp(-1.0, 1.0)
+        omega = torch.acos(dot)
+        sin_omega = torch.sin(omega)
+
+        from_weight = torch.sin((1.0 - weight) * omega) / sin_omega
+        to_weight = torch.sin(weight * omega) / sin_omega
+        spherical = from_weight * safe_from + to_weight * safe_to
+        spherical *= torch.mul(from_norm, (1.0 - weight)) + torch.mul(to_norm, weight)
+
+        use_linear = (to_norm <= 0) | (from_norm <= 0) | (sin_omega.abs() < 1e-6)
+        return torch.where(use_linear, linear, spherical).to(conditioning_to.dtype)
+
+    def interpolate(self, conditioning_to, conditioning_from, conditioning_to_strength, interpolation):
+        if interpolation == "slerp":
+            return self.slerp(conditioning_to, conditioning_from, conditioning_to_strength)
+        return torch.mul(conditioning_to, conditioning_to_strength) + torch.mul(conditioning_from, (1.0 - conditioning_to_strength))
+
+    def addWeighted(self, conditioning_to, conditioning_from, conditioning_to_strength, interpolation="linear"):
         out = []
 
         if len(conditioning_from) > 1:
@@ -122,10 +153,10 @@ class ConditioningAverage :
             if t0.shape[1] < t1.shape[1]:
                 t0 = torch.cat([t0] + [torch.zeros((1, (t1.shape[1] - t0.shape[1]), t1.shape[2]))], dim=1)
 
-            tw = torch.mul(t1, conditioning_to_strength) + torch.mul(t0, (1.0 - conditioning_to_strength))
+            tw = self.interpolate(t1, t0, conditioning_to_strength, interpolation)
             t_to = conditioning_to[i][1].copy()
             if pooled_output_from is not None and pooled_output_to is not None:
-                t_to["pooled_output"] = torch.mul(pooled_output_to, conditioning_to_strength) + torch.mul(pooled_output_from, (1.0 - conditioning_to_strength))
+                t_to["pooled_output"] = self.interpolate(pooled_output_to, pooled_output_from, conditioning_to_strength, interpolation)
             elif pooled_output_from is not None:
                 t_to["pooled_output"] = pooled_output_from
 
