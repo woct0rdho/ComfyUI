@@ -38,7 +38,8 @@ class SaveWEBM(io.ComfyNode):
         )
 
         file = f"{filename}_{counter:05}_.webm"
-        container = av.open(os.path.join(full_output_folder, file), mode="w")
+        saved_path = os.path.join(full_output_folder, file)
+        container = av.open(saved_path, mode="w")
 
         if cls.hidden.prompt is not None:
             container.metadata["prompt"] = json.dumps(cls.hidden.prompt)
@@ -70,6 +71,7 @@ class SaveWEBM(io.ComfyNode):
                 container.mux(packet)
         container.mux(stream.encode())
         container.close()
+        print("Video saved to", saved_path, flush=True)
 
         return io.NodeOutput(images, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
@@ -192,13 +194,15 @@ class SaveVideo(io.ComfyNode):
             if len(metadata) > 0:
                 saved_metadata = metadata
         file = f"{filename}_{counter:05}_.{Types.VideoContainer.get_extension(format_name)}"
+        saved_path = os.path.join(full_output_folder, file)
         video.save_to(
-            os.path.join(full_output_folder, file),
+            saved_path,
             format=Types.VideoContainer(format_name),
             codec=Types.VideoCodec(codec_name),
             metadata=saved_metadata,
             crf=encoding.get("crf"),
         )
+        print("Video saved to", saved_path, flush=True)
 
         return io.NodeOutput(video, ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)]))
 
