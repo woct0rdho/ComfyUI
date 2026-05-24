@@ -1451,6 +1451,7 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
             scaled_fp8_dtype = scaled_fp8_weight.dtype
             if scaled_fp8_dtype == torch.float32:
                 scaled_fp8_dtype = torch.float8_e4m3fn
+            scaled_fp8_format = "float8_e5m2" if scaled_fp8_dtype == torch.float8_e5m2 else "float8_e4m3fn"
 
             if scaled_fp8_weight.nelement() == 2:
                 full_precision_matrix_mult = True
@@ -1473,7 +1474,7 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
                     k_out = "{}.weight_scale".format(layer)
 
                 if layer is not None:
-                    layer_conf = {"format": "float8_e4m3fn"}
+                    layer_conf = {"format": scaled_fp8_format}
                     if full_precision_matrix_mult:
                         layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
                     layers[layer] = layer_conf
