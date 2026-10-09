@@ -94,7 +94,7 @@ def load_lora(lora, to_load, log_missing=True):
 
     if log_missing:
         for x in lora.keys():
-            if x not in loaded_keys:
+            if x not in loaded_keys and not x.startswith("lora_te"):
                 logging.warning("lora key not loaded: {}".format(x))
 
     return patch_dict
