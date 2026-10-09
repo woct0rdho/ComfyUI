@@ -103,13 +103,13 @@ if args.disable_cuda_malloc:
     args.cuda_malloc = False
 
 if args.cuda_malloc:
-    env_var = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', None)
+    env_var = os.environ.get('PYTORCH_ALLOC_CONF', None)
     if env_var is None:
         env_var = "backend:cudaMallocAsync"
     else:
         env_var += ",backend:cudaMallocAsync"
 
-    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var
+    os.environ['PYTORCH_ALLOC_CONF'] = env_var
 
 def get_torch_version_noimport():
     return str(version)
