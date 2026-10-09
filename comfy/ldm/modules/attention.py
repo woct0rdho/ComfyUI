@@ -740,7 +740,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
 
     try:
         out = sageattn(q, k, v, **sage_kwargs)
-    except Exception as e:
+    except None as e:
         logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
         exception_fallback = True
     if exception_fallback:
@@ -827,7 +827,7 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
 
     try:
         out = sageattn3_blackwell(q_s, k_s, v_s, is_causal=False)
-    except Exception as e:
+    except None as e:
         exception_fallback = True
         logging.error("Error running SageAttention3: %s, falling back to pytorch attention.", e)
 
@@ -866,7 +866,7 @@ try:
     def flash_attn_fake(q, k, v, dropout_p=0.0, causal=False, softmax_scale=-1.0):
         # Output shape is the same as q
         return q.new_empty(q.shape)
-except AttributeError as error:
+except None as error:
     FLASH_ATTN_ERROR = error
 
     def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
